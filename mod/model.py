@@ -102,16 +102,23 @@ class UNetUpBlock(nn.Module):
         self.up = nn.ConvTranspose2d(in_size, out_size, kernel_size=2, stride=2, bias=True)
         self.conv_block = UNetConvBlock(in_size, out_size, False, relu_slope)
         self.num_subspace = subspace_dim
-        print(self.num_subspace, subnet_repeat_num)
         self.subnet = Subspace(in_size, self.num_subspace)
         self.skip_m = skip_blocks(out_size, out_size, subnet_repeat_num)
-
+        
     def forward(self, x, bridge):
         up = self.up(x)
         bridge = self.skip_m(bridge)
+
         out = F.concat([up, bridge], 1)
+
         if self.subnet:
+
+            # mod l - project up
+            # original model - project bridge
             b_, c_, h_, w_ = bridge.shape
+            # b_, c_, h_, w_ = up.shape
+            
+
             sub = self.subnet(out)
             V_t = sub.reshape(b_, self.num_subspace, h_*w_)
             V_t = V_t / (1e-6 + F.abs(V_t).sum(axis=2, keepdims=True))
@@ -119,9 +126,18 @@ class UNetUpBlock(nn.Module):
             mat = F.matmul(V_t, V)
             mat_inv = F.matinv(mat)
             project_mat = F.matmul(mat_inv, V_t)
-            bridge_ = bridge.reshape(b_, c_, h_*w_)
+
+            # mod l
+            # bridge_ = bridge.reshape(b_, c_, h_*w_) 
+            # bridge_ = up.reshape(b_, c_, h_*w_)
+
+            mean_ = 0.25 * bridge  + 0.75 * up
+
+            bridge_ = mean_.reshape(b_, c_, h_*w_)
+
             project_feature = F.matmul(project_mat, bridge_.transpose(0, 2, 1))
             bridge = F.matmul(V, project_feature).transpose(0, 2, 1).reshape(b_, c_, h_, w_)
+            
             out = F.concat([up, bridge], 1)
         out = self.conv_block(out)
         return out
