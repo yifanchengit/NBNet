@@ -1,6 +1,6 @@
 ## Credit
 
-- This repository was forked from https://github.com/megvii-research/NBNet
+- This repository is forked from https://github.com/megvii-research/NBNet
 
 
 
